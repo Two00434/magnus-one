@@ -27,7 +27,7 @@ topLevelTaskNames:
 vars:
 - name: var_bq_table
   type: string
-  value: ping-project-471703.test.sf_bike
+  value: ping-project-471703.test.sf_bikes
 - name: var_source_table
   type: string
   value: bigquery-public-data.san_francisco.bikeshare_trips
