@@ -1,0 +1,36 @@
+workflowId: test_looptask
+owner: 365ping@gmail.com
+description: this is a test
+comment: first workflow
+timeZone: America/Los_Angeles
+tasks:
+
+- name: zhaibgqtask
+  type: bq_query
+  desc: prepare for look task
+  cacheResults: false
+  dest: <var_bq_table>
+  query: |-
+    SELECT
+      start_station_name,
+      subscriber_type,
+      COUNT(1) AS trips
+    FROM
+      `<var_source_table>`
+    GROUP BY
+      start_station_name,
+      subscriber_type
+  sqlLegacy: false
+
+topLevelTaskNames:
+- zhaibgqtask
+vars:
+- name: var_bq_table
+  type: string
+  value: ping-project-471703.test.sf_bike
+- name: var_source_table
+  type: string
+  value: bigquery-public-data.san_francisco.bikeshare_trips
+varNames:
+- var_source_table
+- var_bq_table
