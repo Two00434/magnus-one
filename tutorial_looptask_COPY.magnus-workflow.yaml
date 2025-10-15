@@ -1,0 +1,125 @@
+workflowId: tutorial_looptask_COPY
+owner: 365ping@gmail.com
+description: A tutorial on how to use Loop Task
+comment: save, this version worked
+docLink: Loop Task Tutorial|https://potensio.zendesk.com/hc/en-us/articles/360001926131-Loop-Task-Tutorial
+timeZone: America/New_York
+tasks:
+
+- name: bigquerytask
+  type: bq_query
+  enabled: false
+  desc: preparing data for loop task
+  cacheResults: false
+  dest: <var_bq_table>
+  query: |-
+    -- Below is a query that saves data to a table that will later be used as the source for the loop task.
+    -- Populate the var_bq_* parameters to save to your table. You can replace this query with one of your own.
+    SELECT
+      start_station_name,
+      subscriber_type,
+      COUNT(1) AS trips
+    FROM
+      `<var_source_table>`
+    GROUP BY
+      start_station_name,
+      subscriber_type
+  sqlLegacy: false
+
+- name: subscriber_types
+  type: bq_query
+  desc: create data to iterate in loop
+  query: |-
+    -- We are preparing data to be used the loop task. In this example we are looping based on subscriber_type.  This query will obtain distinct values to iterate from our previously saved query results.
+    -- You can identify data to iterate and create a query here to loop through.
+    SELECT
+      subscriber_type AS subscriber_type
+    FROM
+     `<var_bq_table>`
+    GROUP BY
+      subscriber_type
+  sqlLegacy: false
+
+- name: loop
+  type: loop_task
+  desc: this is the loop
+  deps: subscriber_types
+  iterationParam: var_subscriber_types
+  iterationType: bqtable
+  loopTable: <var_subscriber_types_output>
+  nestedTasks: subscriber_type_data,gsexporttask,emailtask,
+
+- name: subscriber_type_data
+  type: bq_query
+  desc: filtering query by looping data iterater
+  query: |-
+    -- Below is an example of querying data that will be filtered by our iteration parameter.  We used subscriber_types to loop through.
+    -- So each subscriber type will be looped through and used as a filter in the WHERE clause. This is an example of how to use the Loop Task to break out and process data.
+    SELECT
+      start_station_name,
+      trips
+    FROM
+      `<var_bq_table>`
+    WHERE
+      subscriber_type = '<var_subscriber_types[1]>'
+    ORDER BY
+      start_station_name
+  sqlLegacy: false
+
+- name: gsexporttask
+  type: bq_to_gs
+  desc: export data to cloud storage
+  deps: subscriber_type_data
+  dest: gs://<var_gs_bucket>/<var_subscriber_types[1]>_<var_gs_file_name>
+  includeHeader: false
+  source: <var_subscriber_type_data_output>
+
+- name: emailtask
+  type: email_task
+  attachBodyFormat: gcs
+  attachGcsPath: gs://<var_gs_bucket>/<var_subscriber_types[1]>_<var_gs_file_name>
+  body: Attached is your data for <var_subscriber_types[1]> types
+  subject: <var_email_subject> - <var_subscriber_types[1]>
+  to: <var_email_to>
+
+- name: clear_subscriber_types
+  type: script_task
+  returnVar: var_subscriber_types
+  script: return null
+  scriptLang: javascript
+
+topLevelTaskNames:
+- bigquerytask
+- subscriber_types
+- loop
+- clear_subscriber_types
+vars:
+- name: var_subscriber_types
+  type: record
+  value:
+- name: var_gs_file_name
+  type: string
+  value: zhai-magnus-test.csv
+- name: var_gs_bucket
+  type: string
+  value: yijian-sample-data/from-magnus
+- name: var_bq_table
+  type: string
+  value: ping-project-471703.test_us_location.bike
+- name: var_email_to
+  type: string
+  value:
+- name: var_email_subject
+  type: string
+  value: My Daily Report
+- name: var_source_table
+  type: string
+  value: bigquery-public-data.san_francisco.bikeshare_trips
+varNames:
+- var_source_table
+- var_email_subject
+- var_email_to
+- var_bq_table
+- var_gs_bucket
+- var_gs_file_name
+- var_subscriber_types
